@@ -1,0 +1,146 @@
+import networkx as nx
+import matplotlib.pyplot as plt
+from collections import deque
+
+# Будуємо граф
+
+G = nx.DiGraph()
+
+
+edges = [
+    ("Термінал 1", "Склад 1", 25),
+    ("Термінал 1", "Склад 2", 20),
+    ("Термінал 1", "Склад 3", 15),
+    ("Термінал 2", "Склад 3", 15),
+    ("Термінал 2", "Склад 4", 30),
+    ("Термінал 2", "Склад 2", 10),
+    ("Склад 1", "Магазин 1", 15),
+    ("Склад 1", "Магазин 2", 10),
+    ("Склад 1", "Магазин 3", 20),
+    ("Склад 2", "Магазин 4", 15),
+    ("Склад 2", "Магазин 5", 10),
+    ("Склад 2", "Магазин 6", 25),
+    ("Склад 3", "Магазин 7", 20),
+    ("Склад 3", "Магазин 8", 15),
+    ("Склад 3", "Магазин 9", 10),
+    ("Склад 4", "Магазин 10", 20),
+    ("Склад 4", "Магазин 11", 10),
+    ("Склад 4", "Магазин 12", 15),
+    ("Склад 4", "Магазин 13", 5),
+    ("Склад 4", "Магазин 14", 10),
+]
+
+
+G.add_weighted_edges_from(edges)
+
+pos = {
+    "Термінал 1": (-1, 0),
+    "Термінал 2": (3, 0),
+    "Склад 1": (0, 1.5),
+    "Склад 2": (2, 1.5),
+    "Склад 3": (0, -1.5),
+    "Склад 4": (2, -1.5),
+    "Магазин 1": (-2, 3),
+    "Магазин 2": (-1, 3),
+    "Магазин 3": (0, 3),
+    "Магазин 4": (1, 3),
+    "Магазин 5": (2, 3),
+    "Магазин 6": (3, 3),
+    "Магазин 7": (-2, -3),
+    "Магазин 8": (-1, -3),
+    "Магазин 9": (0, -3),
+    "Магазин 10": (1, -3),
+    "Магазин 11": (2, -3),
+    "Магазин 12": (3, -3),
+    "Магазин 13": (4, -3),
+    "Магазин 14": (5, -3),
+}
+
+plt.figure(figsize=(15, 10))
+nx.draw(
+    G,
+    pos,
+    with_labels=True,
+    node_size=2000,
+    node_color="skyblue",
+    font_size=12,
+    arrows=True,
+)
+labels = nx.get_edge_attributes(G, "weight")
+nx.draw_networkx_edge_labels(G, pos, edge_labels=labels)
+plt.title("Логістична мережа (граф потоків)")
+plt.show()
+
+
+# Додаємо суперджерело та суперстік
+super_source = "Джерело"
+super_sink = "Сток"
+
+for terminal in ["Термінал 1", "Термінал 2"]:
+    G.add_edge(
+        super_source, terminal, weight=float("inf")
+    )  # inf - необмежена пропускна здатність
+
+for node in list(G.nodes):
+    if node.startswith("Магазин"):
+        G.add_edge(node, super_sink, weight=float("inf"))
+
+# Побудова списку вузлів та індексація
+nodes = list(G.nodes)
+node_indices = {node: i for i, node in enumerate(nodes)}
+n = len(nodes)
+
+# Побудова матриці пропускної здатності
+capacity_matrix = [[0] * n for _ in range(n)]
+for u, v, data in G.edges(data=True):
+    i, j = node_indices[u], node_indices[v]
+    capacity_matrix[i][j] = data["weight"]
+
+
+# Функція для пошуку збільшуючого шляху (BFS)
+def bfs(capacity, flow, source, sink, parent):
+    visited = [False] * len(capacity)
+    queue = deque([source])
+    visited[source] = True
+
+    while queue:
+        u = queue.popleft()
+        for v in range(len(capacity)):
+            if not visited[v] and capacity[u][v] - flow[u][v] > 0:
+                parent[v] = u
+                visited[v] = True
+                if v == sink:
+                    return True
+                queue.append(v)
+    return False
+
+
+# Основна функція для обчислення максимального потоку
+def edmonds_karp(capacity, source, sink):
+    n = len(capacity)
+    flow = [[0] * n for _ in range(n)]
+    parent = [-1] * n
+    max_flow = 0
+
+    while bfs(capacity, flow, source, sink, parent):
+        path_flow = float("inf")
+        s = sink
+        while s != source:
+            path_flow = min(path_flow, capacity[parent[s]][s] - flow[parent[s]][s])
+            s = parent[s]
+        v = sink
+        while v != source:
+            u = parent[v]
+            flow[u][v] += path_flow
+            flow[v][u] -= path_flow
+            v = parent[v]
+        max_flow += path_flow
+
+    return max_flow
+
+
+source = node_indices[super_source]
+sink = node_indices[super_sink]
+max_flow = edmonds_karp(capacity_matrix, source, sink)
+
+print(f"Максимальний потік у логістичній мережі: {max_flow}")

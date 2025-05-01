@@ -56,25 +56,11 @@ pos = {
     "Магазин 14": (5, -3),
 }
 
-plt.figure(figsize=(15, 10))
-nx.draw(
-    G,
-    pos,
-    with_labels=True,
-    node_size=2000,
-    node_color="skyblue",
-    font_size=12,
-    arrows=True,
-)
-labels = nx.get_edge_attributes(G, "weight")
-nx.draw_networkx_edge_labels(G, pos, edge_labels=labels)
-plt.title("Логістична мережа (граф потоків)")
-plt.show()
-
 
 # Додаємо суперджерело та суперстік
 super_source = "Джерело"
 super_sink = "Сток"
+
 
 for terminal in ["Термінал 1", "Термінал 2"]:
     G.add_edge(
@@ -136,11 +122,51 @@ def edmonds_karp(capacity, source, sink):
             v = parent[v]
         max_flow += path_flow
 
-    return max_flow
+    return max_flow, flow
 
 
 source = node_indices[super_source]
 sink = node_indices[super_sink]
-max_flow = edmonds_karp(capacity_matrix, source, sink)
+
+max_flow, flow = edmonds_karp(capacity_matrix, source, sink)
 
 print(f"Максимальний потік у логістичній мережі: {max_flow}")
+print("Таблиця фактичних потоків (термінал - магазин):")
+
+# Таблиця термінал - магазин
+for term in ["Термінал 1", "Термінал 2"]:
+    term_idx = node_indices[term]
+    for store_num in range(1, 15):  # Магазини від 1 до 14
+        store = f"Магазин {store_num}"
+        store_idx = node_indices[store]
+        total_flow = 0
+        for warehouse in ["Склад 1", "Склад 2", "Склад 3", "Склад 4"]:
+            warehouse_idx = node_indices[warehouse]
+            # Шлях: термінал - склад - магазин
+            if flow[warehouse_idx][store_idx] > 0 and flow[term_idx][warehouse_idx] > 0:
+                total_flow += min(
+                    flow[warehouse_idx][store_idx], flow[term_idx][warehouse_idx]
+                )
+        if total_flow > 0:
+            print(f"{term} - {store}: {total_flow} од.")
+
+
+# Відображення графа  без "Джерело" і "Сток"
+plt.figure(figsize=(15, 10))
+
+visible_nodes = [node for node in G.nodes if node in pos]
+
+nx.draw(
+    G.subgraph(visible_nodes),
+    pos,
+    with_labels=True,
+    node_size=2000,
+    node_color="skyblue",
+    font_size=12,
+    arrows=True,
+)
+visible_edges = [(u, v) for u, v in G.edges() if u in pos and v in pos]
+visible_labels = {(u, v): G[u][v]["weight"] for u, v in visible_edges}
+nx.draw_networkx_edge_labels(G, pos, edge_labels=visible_labels)
+plt.title("Логістична мережа (граф потоків)")
+plt.show()
